@@ -2,13 +2,89 @@
 - hosts: webserver
   gather_facts: no
   tasks:
-    - name: Creating my new folder
+    - name: Creating a new folder
       file:
-        path: "{{ my_demo_folder_path }}"
+        path: "{{my_demo_folder_path}}"
         state: directory
         owner: ec2-user
-
-    - name: Creating new file
+    
+    - name: Enable amazon-linux-extras packages
+      shell: "amazon-linux-extras enable nginx1"
+    
+    - name: Update yum cache and install Nginx
+      yum:
+        name: nginx
+        state: latest
+        update_cache: yes
+    
+    - name: Start NGiNX
+      service:
+        name: nginx
+        state: started
+    
+    - name: Ansible Create directory sites-available if not exists
       file:
-        path: "{{ my_demo_folder_path }}/new_file.txt"
-        state: touch
+        path: /etc/nginx/sites-available
+        state: directory
+        mode: '0755'
+        group: root
+        owner: ec2-user
+
+    - name: Ansible Create directory sites-enabled if not exists
+      file:
+        path: /etc/nginx/sites-enabled
+        state: directory
+        mode: '0755'
+        group: root
+        owner: ec2-user
+    
+    - name: Copy nginx conf
+      copy:
+        src: "files/nginx.conf"
+        dest: "/etc/nginx/nginx.conf"
+
+    - name: Restart Nginx
+      service:
+        name: nginx
+        state: restarted
+    
+    - name: Create document root
+      file: 
+        path: "{{ document_root }}"
+        state: directory
+
+    - name: Copy website files to the server's document root
+      copy:
+        src: "{{ app_root }}"
+        dest: "{{ document_root }}"
+        mode: preserve
+
+    - name: Apply Nginx template
+      template: 
+        src: files/nginx.conf.j2
+        dest: /etc/nginx/sites-available/default
+      notify: Restart Nginx
+    
+    - name: Enable new site
+      file:
+        src: /etc/nginx/sites-available/default
+        dest: /etc/nginx/sites-enabled/default
+        state: link
+      notify: Restart Nginx
+
+  handlers:
+    - name: Restart Nginx
+      service:
+        name: nginx
+        state: restarted
+    
+
+   
+
+  
+
+    
+
+    
+
+

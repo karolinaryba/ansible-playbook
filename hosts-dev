@@ -1,0 +1,6 @@
+#GROUP NAME FOR MY WEB SERVER
+[webservers]
+52.215.190.175      # IP ADDRESS OF MY EC2 SERVER
+
+[local]
+control ansible_connection=local

@@ -1,90 +1,62 @@
 ---
-- hosts: webserver
-  gather_facts: no
-  tasks:
-    - name: Creating a new folder
-      file:
-        path: "{{my_demo_folder_path}}"
-        state: directory
-        owner: ec2-user
+  - hosts: webservers
+    become: true
+    gather_facts: no
+    vars:
+      my_demo_folder_path: "/home/ec2-user"
+      server_name: "52.215.190.175" #ansible_default_ipv4.address
+      document_root: "/var/www/html"
+      app_root: html_demo_site-main
+
+    tasks: 
+      - name: Creating a new folder
+        file:
+          path: "{{ my_demo_folder_path }}"
+          state: directory
+          owner: ec2-user
     
-    - name: Enable amazon-linux-extras packages
-      shell: "amazon-linux-extras enable nginx1"
+      - name: install Nginx
+        yum:
+          name: https://nginx.org/packages/mainline/amzn2/2/x86_64/RPMS/nginx-1.21.4-1.amzn2.ngx.x86_64.rpm
+          state: latest
+
+      - name: Copy website files to the server's document root
+        copy:
+          src: "{{ app_root }}"
+          dest: "{{ document_root }}"
+          mode: preserve
+
+      - name: Creating sites-available
+        file:
+          path: /etc/nginx/sites-available
+          state: directory
+          mode: '0755'
+          group: root
+          owner: ec2-user
+
+      - name: Creating sites-enabled
+        file:
+          path: /etc/nginx/sites-enabled
+          state: directory
+          mode: '0755'
+          group: root
+          owner: ec2-user
     
-    - name: Update yum cache and install Nginx
-      yum:
-        name: nginx
-        state: latest
-        update_cache: yes
-    
-    - name: Start NGiNX
-      service:
-        name: nginx
-        state: started
-    
-    - name: Ansible Create directory sites-available if not exists
-      file:
-        path: /etc/nginx/sites-available
-        state: directory
-        mode: '0755'
-        group: root
-        owner: ec2-user
+      - name: Apply Nginx template
+        template:
+          src: files/nginx.conf.j2
+          dest: /etc/nginx/sites-available/site
+        notify: Restart Nginx
 
-    - name: Ansible Create directory sites-enabled if not exists
-      file:
-        path: /etc/nginx/sites-enabled
-        state: directory
-        mode: '0755'
-        group: root
-        owner: ec2-user
-    
-    - name: Copy nginx conf
-      copy:
-        src: "files/nginx.conf"
-        dest: "/etc/nginx/nginx.conf"
+      - name: Enable new site                  #ERROR "refusing to convert from directory to symlink for /etc/nginx/sites-enabled/site"
+        file:
+          src: /etc/nginx/sites-available/site
+          dest: /etc/nginx/sites-enabled/site
+          state: link
+        notify: Restart Nginx
 
-    - name: Restart Nginx
-      service:
-        name: nginx
-        state: restarted
-    
-    - name: Create document root
-      file: 
-        path: "{{ document_root }}"
-        state: directory
-
-    - name: Copy website files to the server's document root
-      copy:
-        src: "{{ app_root }}"
-        dest: "{{ document_root }}"
-        mode: preserve
-
-    - name: Apply Nginx template
-      template: 
-        src: files/nginx.conf.j2
-        dest: /etc/nginx/sites-available/default
-      notify: Restart Nginx
-    
-    - name: Enable new site
-      file:
-        src: /etc/nginx/sites-available/default
-        dest: /etc/nginx/sites-enabled/default
-        state: link
-      notify: Restart Nginx
-
-  handlers:
-    - name: Restart Nginx
-      service:
-        name: nginx
-        state: restarted
-    
-
-   
-
-  
-
-    
-
-    
-
-
+    handlers:
+      - name: Restart Nginx
+        service:
+          name: nginx
+          state: restarted
